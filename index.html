@@ -1,0 +1,364 @@
+[gemini-code-1792536342725.html](https://github.com/user-attachments/files/33767272/gemini-code-1792536342725.html)
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eve Music Collection & Downloader (24 Songs)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JSZip & FileSaver CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <!-- FontAwesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              400: '#38bdf8',
+              500: '#0284c7',
+              600: '#0369a1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-effect:hover {
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white pb-48">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 glass-card border-b border-slate-800/80 px-4 sm:px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-music text-slate-950 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+            Eve Music Collection
+          </h1>
+          <p class="text-xs text-slate-400">添付楽曲全<span id="totalSongCount">0</span>曲 収録</p>
+        </div>
+      </div>
+
+      <!-- Action Controls -->
+      <div class="flex items-center flex-wrap gap-2.5 w-full sm:w-auto">
+        <div class="relative flex-1 sm:w-56">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+          <input type="text" id="searchInput" oninput="filterSongs()" placeholder="曲名を検索..." 
+                 class="w-full bg-slate-900/90 text-xs border border-slate-700/60 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:border-cyan-400 text-slate-200 placeholder-slate-500 transition">
+        </div>
+
+        <button onclick="toggleSelectAll()" id="selectAllBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fa-regular fa-square-check"></i> <span>全選択</span>
+        </button>
+
+        <button onclick="downloadSelected()" id="bulkDownloadBtn" class="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-lg shadow-lg shadow-cyan-500/20 transition flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fa-solid fa-cloud-arrow-down text-sm"></i>
+          <span>選択曲DL (<span id="selectedCount">0</span>)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+    <div id="songGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-24"></div>
+  </main>
+
+  <!-- Player Bar (Fixed Bottom) -->
+  <div id="playerBar" class="fixed bottom-0 left-0 right-0 z-40 glass-card border-t border-slate-800/90 px-4 py-4 shadow-2xl">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+      
+      <!-- Current Song Info -->
+      <div class="flex items-center space-x-3 w-full md:w-1/4 min-w-0">
+        <div id="playerCover" class="w-11 h-11 rounded-lg bg-slate-900 flex-shrink-0 border border-slate-700 flex items-center justify-center text-cyan-400">
+          <i class="fa-solid fa-compact-disc text-xl animate-spin"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h4 id="playerTitle" class="text-xs sm:text-sm font-semibold text-slate-200 truncate">曲を選択してください</h4>
+          <p id="playerArtist" class="text-xs text-slate-400 truncate">Eve</p>
+        </div>
+      </div>
+
+      <!-- Center Controls & Progress -->
+      <div class="w-full md:w-2/4 flex flex-col items-center space-y-1">
+        <div class="flex items-center space-x-4">
+          <button onclick="prevSong()" class="text-slate-400 hover:text-slate-200 transition text-sm">
+            <i class="fa-solid fa-backward-step"></i>
+          </button>
+          <button onclick="togglePlay()" id="playPauseBtn" class="w-9 h-9 rounded-full bg-cyan-400 text-slate-950 flex items-center justify-center hover:bg-cyan-300 transition shadow-lg shadow-cyan-400/20">
+            <i class="fa-solid fa-play text-xs ml-0.5"></i>
+          </button>
+          <button onclick="nextSong()" class="text-slate-400 hover:text-slate-200 transition text-sm">
+            <i class="fa-solid fa-forward-step"></i>
+          </button>
+        </div>
+
+        <div class="w-full flex items-center space-x-2 text-xs text-slate-400">
+          <span id="currentTime">0:00</span>
+          <input type="range" id="progressBar" value="0" min="0" max="100" oninput="seekAudio(this.value)"
+                 class="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+          <span id="durationTime">0:00</span>
+        </div>
+      </div>
+
+      <!-- Volume & Download Single -->
+      <div class="flex items-center justify-end space-x-3 w-full md:w-1/4">
+        <i class="fa-solid fa-volume-high text-xs text-slate-400"></i>
+        <input type="range" id="volumeBar" min="0" max="1" step="0.01" value="0.8" oninput="setVolume(this.value)"
+               class="w-16 sm:w-20 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+        <button id="playerDownloadBtn" onclick="downloadCurrentSong()" disabled
+                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 text-xs rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-download"></i> <span>DL</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <audio id="audioPlayer"></audio>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed top-20 right-6 z-50 transform translate-x-full transition-transform duration-300 glass-card border border-cyan-500/30 text-slate-200 px-4 py-3 rounded-xl shadow-xl flex items-center gap-3">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-cyan-400"></i>
+    <span id="toastMsg" class="text-xs font-medium">通知</span>
+  </div>
+
+  <script>
+    // 重複を削除した全24曲の個別楽曲リスト
+    const songs = [
+      { id: 1, title: 'AIYOU', file: 'AIYOU - Eve Music Video.mp3', tag: 'Single' },
+      { id: 2, title: 'あびすいんざわーるど', file: 'あびすいんざわーるど（Abyss in the world） - Eve Music Video.mp3', tag: 'Single' },
+      { id: 3, title: '風のアンセム', file: '風のアンセム feat. suis from ヨルシカ (Wind\'s Anthem) - Eve Music Video.mp3', tag: 'Collab' },
+      { id: 4, title: 'Underdog', file: 'Underdog - Eve Music Video.mp3', tag: 'Single' },
+      { id: 5, title: 'アイオライト', file: 'アイオライト (Iolite) - Eve Music Video.mp3', tag: 'Single' },
+      { id: 6, title: 'ゴーストアベニュー', file: 'ゴーストアベニュー(Ghost Avenue) - Eve Music Video.mp3', tag: 'Single' },
+      { id: 7, title: 'feel like', file: 'feel like - Eve Music Video.mp3', tag: 'Single' },
+      { id: 8, title: 'さよならエンドロール', file: 'さよならエンドロール – Eve MV.mp3', tag: 'MV' },
+      { id: 9, title: 'lazy cat', file: 'lazy cat – Eve Music Video.mp3', tag: 'Single' },
+      { id: 10, title: 'スイートメモリー', file: 'スイートメモリー - Eve ×「小市民シリーズ」 MV.mp3', tag: 'Anime' },
+      { id: 11, title: 'ティーンエイジブルー', file: 'ティーンエイジブルー (Teenage Blue) – Eve Music Video.mp3', tag: 'Single' },
+      { id: 12, title: 'インソムニア', file: 'インソムニア (INSOMNIA) – Eve Music Video.mp3', tag: 'Tie-up' },
+      { id: 13, title: 'フラットウッズのモンスターみたいに', file: 'フラットウッズのモンスターみたいに – Eve × Deu MV.mp3', tag: 'Collab' },
+      { id: 14, title: 'Glorious Day', file: 'Glorious Day feat. 初音ミク - Eve Music Video.mp3', tag: 'Collab' },
+      { id: 15, title: 'pray', file: 'pray - Eve MV.mp3', tag: 'MV' },
+      { id: 16, title: '逃避行', file: '逃避行 - Eve MV.mp3', tag: 'MV' },
+      { id: 17, title: 'アヴァン', file: 'アヴァン(Avant) - Eve MV.mp3', tag: 'MV' },
+      { id: 18, title: '花嵐', file: '花嵐 - Eve MV.mp3', tag: 'Single' },
+      { id: 19, title: '冒険録', file: '冒険録 (Adventure Log) - Eve Music Video.mp3', tag: 'Single' },
+      { id: 20, title: '虎狼来', file: '虎狼来 (Kororon) - Eve Music Video.mp3', tag: 'Single' },
+      { id: 21, title: 'ファイトソング', file: 'ファイトソング (Fight Song) - Eve Music Video.mp3', tag: 'Single' },
+      { id: 22, title: 'ぼくらの', file: 'ぼくらの (Bokurano) - Eve Music Video.mp3', tag: 'Anime' },
+      { id: 23, title: '廻廻奇譚', file: '廻廻奇譚 - Eve CGMV(Adam by Eve ver.).mp3', tag: 'Anime' },
+      { id: 24, title: '白雪', file: '白雪 (White Snow) - Eve MV.mp3', tag: 'MV' }
+    ];
+
+    let selectedSongIds = new Set();
+    let currentSongIndex = -1;
+    let isPlaying = false;
+    const audio = document.getElementById('audioPlayer');
+    const songGrid = document.getElementById('songGrid');
+
+    function renderSongs(filteredList = songs) {
+      document.getElementById('totalSongCount').innerText = songs.length;
+      songGrid.innerHTML = '';
+      
+      filteredList.forEach(song => {
+        const isSelected = selectedSongIds.has(song.id);
+        const isCurrent = currentSongIndex >= 0 && songs[currentSongIndex].id === song.id;
+
+        const card = document.createElement('div');
+        card.className = `glass-card rounded-xl p-4 flex items-center justify-between gap-3 border transition duration-200 glow-effect ${
+          isCurrent ? 'border-cyan-400/80 bg-slate-900/90' : 'border-slate-800 hover:border-slate-700'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center space-x-3 min-w-0 flex-1">
+            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect(${song.id})"
+                   class="w-4 h-4 rounded border-slate-700 text-cyan-500 focus:ring-cyan-400 bg-slate-900 cursor-pointer">
+            <div onclick="playSongById(${song.id})" class="cursor-pointer min-w-0 flex-1">
+              <div class="flex items-center space-x-2">
+                <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700/60 font-mono">${song.tag}</span>
+                <h3 class="text-sm font-semibold text-slate-200 truncate ${isCurrent ? 'text-cyan-400' : ''}">${song.title}</h3>
+              </div>
+              <p class="text-xs text-slate-400 truncate mt-1">Eve</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="playSongById(${song.id})" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700">
+              <i class="fa-solid ${isCurrent && isPlaying ? 'fa-pause text-cyan-400' : 'fa-play'} text-xs"></i>
+            </button>
+            <a href="${encodeURI(song.file)}" download="${song.file}" onclick="showToast('ダウンロードを開始します')" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700">
+              <i class="fa-solid fa-download text-xs"></i>
+            </a>
+          </div>
+        `;
+        songGrid.appendChild(card);
+      });
+    }
+
+    function toggleSelect(id) {
+      if (selectedSongIds.has(id)) selectedSongIds.delete(id);
+      else selectedSongIds.add(id);
+      updateSelectionUI();
+    }
+
+    function toggleSelectAll() {
+      if (selectedSongIds.size === songs.length) selectedSongIds.clear();
+      else songs.forEach(s => selectedSongIds.add(s.id));
+      updateSelectionUI();
+      renderSongs();
+    }
+
+    function updateSelectionUI() {
+      document.getElementById('selectedCount').innerText = selectedSongIds.size;
+    }
+
+    function filterSongs() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      renderSongs(songs.filter(s => s.title.toLowerCase().includes(q) || s.tag.toLowerCase().includes(q)));
+    }
+
+    function playSongById(id) {
+      const index = songs.findIndex(s => s.id === id);
+      if (index === -1) return;
+      if (currentSongIndex === index) {
+        togglePlay();
+      } else {
+        currentSongIndex = index;
+        loadAndPlayCurrentSong();
+      }
+    }
+
+    function loadAndPlayCurrentSong() {
+      const song = songs[currentSongIndex];
+      audio.src = song.file;
+      audio.play().then(() => {
+        isPlaying = true;
+        updatePlayerUI();
+      }).catch(() => showToast('再生エラーが発生しました', true));
+      renderSongs();
+    }
+
+    function togglePlay() {
+      if (currentSongIndex === -1 && songs.length > 0) {
+        currentSongIndex = 0;
+        loadAndPlayCurrentSong();
+        return;
+      }
+      if (isPlaying) { audio.pause(); isPlaying = false; }
+      else { audio.play(); isPlaying = true; }
+      updatePlayerUI();
+      renderSongs();
+    }
+
+    function prevSong() {
+      currentSongIndex = (currentSongIndex - 1 + songs.length) % songs.length;
+      loadAndPlayCurrentSong();
+    }
+
+    function nextSong() {
+      currentSongIndex = (currentSongIndex + 1) % songs.length;
+      loadAndPlayCurrentSong();
+    }
+
+    function updatePlayerUI() {
+      document.getElementById('playPauseBtn').innerHTML = `<i class="fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'} text-xs ${isPlaying ? '' : 'ml-0.5'}"></i>`;
+      if (currentSongIndex >= 0) {
+        const song = songs[currentSongIndex];
+        document.getElementById('playerTitle').innerText = song.title;
+        document.getElementById('playerArtist').innerText = `Eve • ${song.tag}`;
+        document.getElementById('playerDownloadBtn').disabled = false;
+      }
+    }
+
+    audio.addEventListener('timeupdate', () => {
+      if (!isNaN(audio.duration)) {
+        document.getElementById('progressBar').value = (audio.currentTime / audio.duration) * 100;
+        document.getElementById('currentTime').innerText = formatTime(audio.currentTime);
+        document.getElementById('durationTime').innerText = formatTime(audio.duration);
+      }
+    });
+
+    audio.addEventListener('ended', nextSong);
+
+    function seekAudio(val) {
+      if (!isNaN(audio.duration)) audio.currentTime = (val / 100) * audio.duration;
+    }
+
+    function setVolume(val) { audio.volume = val; }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function downloadCurrentSong() {
+      if (currentSongIndex >= 0) {
+        const song = songs[currentSongIndex];
+        const a = document.createElement('a');
+        a.href = song.file;
+        a.download = song.file;
+        a.click();
+        showToast(`DL開始: ${song.title}`);
+      }
+    }
+
+    async function downloadSelected() {
+      if (selectedSongIds.size === 0) {
+        showToast('曲が選択されていません', true);
+        return;
+      }
+      showToast('ZIP圧縮を開始します...');
+      const zip = new JSZip();
+      const folder = zip.folder("Eve_Music_Collection");
+
+      for (const id of selectedSongIds) {
+        const song = songs.find(s => s.id === id);
+        if (!song) continue;
+        try {
+          const resp = await fetch(song.file);
+          const blob = await resp.blob();
+          folder.file(song.title + ".mp3", blob);
+        } catch (e) { console.error(e); }
+      }
+
+      zip.generateAsync({ type: "blob" }).then(content => {
+        saveAs(content, "Eve_Selected_Songs.zip");
+        showToast('ZIPダウンロードが完了しました');
+      });
+    }
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      document.getElementById('toastIcon').className = isError ? 'fa-solid fa-circle-exclamation text-amber-400' : 'fa-solid fa-circle-check text-cyan-400';
+      toast.classList.remove('translate-x-full');
+      setTimeout(() => toast.classList.add('translate-x-full'), 3000);
+    }
+
+    renderSongs();
+  </script>
+</body>
+</html>
